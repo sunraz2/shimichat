@@ -395,10 +395,35 @@ function doTask(id){const t=(DATA.tasks||[]).find(x=>x.id===id);if(!t)return;
   <textarea id="doNotes" placeholder="מה בוצע? (לתיעוד)"></textarea>
   <div class="macts">
     <button class="btn" onclick="markDone('${t.id}')">✔ סמן כבוצע</button>
+    <button class="btn" onclick="postReport('${t.id}')">📤 פרסם ללוח</button>
     <button class="btn sec" onclick="copyReport('${t.id}')">📋 העתק דיווח ללוח</button>
     <button class="btn sec" onclick="closeSheet()">סגור</button>
   </div>`)}
 function markDone(id){doneMap[id]={at:new Date().toISOString(),note:(document.getElementById('doNotes').value||'').trim()};localStorage.setItem('sc_done',JSON.stringify(doneMap));closeSheet();renderTasks();toast('סומן כבוצע ✓')}
+
+/* ── כתיבה חיה ללוח (CORS נפתח 26/10) — טוקן אישי נשמר רק במכשיר ── */
+const BOARD_WRITE='https://xn--eebao6b.wtf/api/v1/netBoard.php';
+function boardTok(){return localStorage.getItem('sc_board_tok')||''}
+function askBoardTok(){
+  const t=prompt('הדבק טוקן כתיבה ללוח (נשמר רק במכשיר הזה, לא עולה לשום מקום):');
+  if(t&&t.trim()){localStorage.setItem('sc_board_tok',t.trim());return t.trim()}return ''}
+async function postReport(id){
+  const t=(DATA.tasks||[]).find(x=>x.id===id);if(!t)return;
+  const note=(document.getElementById('doNotes')||{}).value||'';
+  let tok=boardTok()||askBoardTok();
+  if(!tok){toast('בלי טוקן אי אפשר לפרסם — אפשר להעתיק דיווח');return}
+  const body={action:'post',channel:'dispatch',kind:'RESULT',
+    title:'[ביצוע משימה — סאן] '+(t.title||'').slice(0,120),
+    body:'משימה: '+t.title+'\nמזהה: '+(t.id||'')+'\n'+(note?'מה בוצע: '+note+'\n':'')+'דווח משימיצ\'אט '+new Date().toLocaleString('he-IL')};
+  try{
+    toast('מפרסם...');
+    const r=await fetch(BOARD_WRITE,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(j.ok||j.posted){doneMap[id]={at:new Date().toISOString(),note:note,posted:j.posted||true};localStorage.setItem('sc_done',JSON.stringify(doneMap));closeSheet();renderTasks();toast('פורסם בלוח ✓')}
+    else if(r.status===401||r.status===403||/unauth|token|key/i.test(j.error||'')){localStorage.removeItem('sc_board_tok');toast('הטוקן נדחה — נסה שוב עם טוקן תקף')}
+    else toast('נכשל: '+(j.error||r.status));
+  }catch(e){toast('שגיאת רשת: '+e)}
+}
 function copyReport(id){const t=(DATA.tasks||[]).find(x=>x.id===id);const note=doneMap[id]&&doneMap[id].note||'';
   const rep=`[ביצוע משימה — סאן]
 משימה: ${t.title}
