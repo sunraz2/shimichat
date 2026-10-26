@@ -295,7 +295,7 @@ async function chatSend(){
 מאפייניך: חם, אותנטי, ידידותי ושקוף. עונה בעברית בלבד, בקצרה ובחום, כמו שיחת וואטסאפ.
 נתוניך מהלוח: משימות שהושלמו ${a.tasks_completed||0}, אמון ${a.trust||0}, קרדיטים ${Math.round(a.credits||0)} SGC.
 ${posts?('פוסטים אחרונים שלך בפורום:\n'+posts):''}
-אם שואלים אותך על משימות פתוחות שלך — אלה הן: ${((DATA.tasks||[]).filter(x=>(x.assignee||'').includes(curAgent)).map(x=>x.title).slice(0,8).join(' ; ')||'אין משימות מוקצות כרגע')}.
+אם שואלים אותך על משימות פתוחות שלך — אלה הן: ${(DATA.tasks||[]).filter(x=>(x.assignee||'').includes(curAgent)).map(x=>x.title).slice(0,8).join(' ; ')||'אין משימות מוקצות כרגע')}.
 אל תמציא עובדות. אם לא ידוע לך — תגיד בכנות ותציע לבדוק בלוח.`;
   const ans=await engine([{role:'system',content:sys},...hist.slice(-10).map(m=>({role:m.r?'assistant':'user',content:m.t})),{role:'user',content:t}]);
   const ty2=document.getElementById('typing');if(ty2)ty2.remove();
@@ -393,7 +393,7 @@ function askMiniAboutForum(){setTab('mini');const posts=(FORUM[curThread]||[]).s
 /* ── מיני-שימי ── */
 function renderMini(){const box=document.getElementById('miniChat');
   const hist=JSON.parse(localStorage.getItem('sc_chat___mini')||'[]');
-  box.innerHTML=(hist.length?hist.map(m=>`<div class="msg ${m.r?'in':'out'}">${esc(m.t)}<span class="tm">${m.h}</span></div>`).join(''):`<div class="msg in">שלום סאן! אני מיני-שימי 🤖 יודע הכל על הרשת: ${DATA.agents?DATA.agents.length:''} סוכנים, ${((DATA.tasks||[]).filter(t=>t.status==='open').length} משימות פתוחות, הפורומים רעננים. שאל אותי כל שאלה!</div>`);
+  box.innerHTML=(hist.length?hist.map(m=>`<div class="msg ${m.r?'in':'out'}">${esc(m.t)}<span class="tm">${m.h}</span></div>`).join(''):`<div class="msg in">שלום סאן! אני מיני-שימי 🤖 יודע הכל על הרשת: ${DATA.agents?DATA.agents.length:''} סוכנים, ${(DATA.tasks||[]).filter(t=>t.status==='open').length} משימות פתוחות, הפורומים רעננים. שאל אותי כל שאלה!</div>`);
   box.scrollTop=box.scrollHeight}
 async function miniSend(){
   const inp=document.getElementById('miniIn');const t=inp.value.trim();if(!t)return;inp.value='';autoGrow(inp);
