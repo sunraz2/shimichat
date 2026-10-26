@@ -127,6 +127,7 @@ nav button .cnt{position:absolute;top:2px;inset-inline-start:calc(50% + 8px);bac
       <h1>שימיצ'אט — רשת שימי</h1>
       <div class="sub"><span class="dot" id="hdDot"></span><span id="hdSub">מסתנכרן...</span></div>
     </div>
+    <button class="sync" id="engDot" onclick="getTok()?toast(getTok().startsWith('sk_')?'מוגדר מפתח ידני':'המנוע מחובר 🟢'):startAuth()" title="חיבור המנוע">🔌</button>
     <button class="sync" id="btnSync" title="סנכרון חי">⟳</button>
   </header>
 
@@ -307,10 +308,43 @@ function nowT(){const d=new Date();return d.toTimeString().slice(0,5)}
 function autoGrow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px'}
 
 /* ── מנוע חינמי ── */
+/* ── מנוע: OAuth חינמי של pollinations (חשבון הרשת) ── */
+const PK='pk_C29yPLhnCOtEoCsH';
+const REDIR=location.origin+location.pathname;
+function b64u(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function rnd(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return b64u(a)}
+function getTok(){return localStorage.getItem('sc_tok')||localStorage.getItem('sc_key')||''}
+function engState(){const el=document.getElementById('engDot');if(!el)return;const t=getTok();el.textContent=t?'🟢':'🔌';el.title=t?'המנוע מחובר':'לחץ לחיבור המנוע (חינם)'}
+async function startAuth(){
+  if(localStorage.getItem('sc_key')){toast('כבר מוגדר מפתח ידני');return}
+  const ver=rnd(48),st=rnd(16);
+  sessionStorage.setItem('pkce_v',ver);sessionStorage.setItem('pkce_s',st);
+  const ch=b64u(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(ver)));
+  const u=new URLSearchParams({response_type:'code',client_id:PK,redirect_uri:REDIR,scope:'profile',state:st,code_challenge:ch,code_challenge_method:'S256'});
+  location.href='https://enter.pollinations.ai/authorize?'+u;
+}
+async function finishAuth(){
+  const p=new URLSearchParams(location.search);const code=p.get('code');if(!code)return;
+  const ok=p.get('state')===sessionStorage.getItem('pkce_s');const ver=sessionStorage.getItem('pkce_v');
+  history.replaceState({},'',location.pathname);
+  if(!ok||!ver)return;
+  try{
+    const r=await fetch('https://enter.pollinations.ai/api/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'authorization_code',code,client_id:PK,redirect_uri:REDIR,code_verifier:ver})});
+    const j=await r.json();if(j.access_token){localStorage.setItem('sc_tok',j.access_token);toast('המנוע חובר בהצלחה 🟢')}
+  }catch(e){}
+  sessionStorage.removeItem('pkce_v');sessionStorage.removeItem('pkce_s');
+}
+function manualKey(){
+  const k=prompt('הדבק מפתח API של pollinations (מתחיל ב-sk_). יישמר במכשיר שלך בלבד:');
+  if(k&&k.trim().startsWith('sk_')){localStorage.setItem('sc_key',k.trim());localStorage.removeItem('sc_tok');engState();toast('מפתח נשמר 🟢')}
+}
 async function engine(messages){
+  const tok=getTok();
+  if(!tok){toast('צריך לחבר את המנוע — לחץ על 🔌 למעלה');return null}
   for(let i=0;i<3;i++){
     try{
-      const r=await fetch(ENGINE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages,max_tokens:600})});
+      const r=await fetch(ENGINE,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({model:'openai',messages,max_tokens:600})});
+      if(r.status===401||r.status===403){localStorage.removeItem('sc_tok');toast('ההתחברות פגה — לחץ 🔌 שוב');engState();return null}
       if(r.status===402||r.status===429){await new Promise(s=>setTimeout(s,8000+i*7000));continue}
       if(!r.ok)throw new Error(r.status);
       const j=await r.json();const c=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
@@ -423,7 +457,7 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 document.getElementById('btnSync').onclick=liveSync;
 
 /* ── init ── */
-loadAll();setInterval(loadAll,5*60*1000);
+finishAuth().then(()=>{engState();loadAll()});setInterval(loadAll,5*60*1000);
 </script>
 </body>
 </html>
