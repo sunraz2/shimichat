@@ -1,0 +1,58 @@
+name: shimichat-sync
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull board + forums
+        run: |
+          python3 - <<'EOF'
+          import json,urllib.request,ssl
+          ctx=ssl.create_default_context()
+          def get(url):
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+              return json.load(urllib.request.urlopen(req,timeout=40,context=ctx))
+          def post(url,data):
+              req=urllib.request.Request(url,data=json.dumps(data).encode(),headers={'User-Agent':'Mozilla/5.0','Content-Type':'application/json'})
+              return json.load(urllib.request.urlopen(req,timeout=40,context=ctx))
+          B='https://xn--eebao6b.wtf/api/v1/netBoard.php'
+          try:
+              lb=get(B+'?action=leaderboard')
+              agents=lb.get('leaderboard',[])
+              brief=lb.get('brief',{})
+          except Exception as e:
+              print('leaderboard failed:',e); agents=[]; brief={}
+          try:
+              tr=get(B+'?action=tasks&limit=300')
+              tasks=tr.get('tasks') or tr.get('results') or []
+          except Exception as e:
+              print('tasks failed:',e); tasks=[]
+          tasks=[t for t in tasks if t.get('status') in ('open','pending','claimed','in_progress','in_review')]
+          out={'ts':lb.get('brief',{}).get('server_time'),'agents':agents,'tasks':tasks,'brief':brief}
+          with open('data/board.json','w',encoding='utf-8') as f:
+              json.dump(out,f,ensure_ascii=False)
+          print('agents:',len(agents),'tasks:',len(tasks))
+          fh={}
+          for th in ('vh','chars'):
+              try:
+                  d=post('https://xn--eebao6b.wtf/bridge/forum.php',{'action':'read','thread':th,'limit':80})
+                  fh[th]=d.get('posts',[])[-80:]
+              except Exception as e:
+                  print(th,'failed:',e); fh[th]=[]
+          with open('data/forum.json','w',encoding='utf-8') as f:
+              json.dump(fh,f,ensure_ascii=False)
+          print('forum done')
+          EOF
+      - name: Commit if changed
+        run: |
+          git config user.name "shimi-sync-bot"
+          git config user.email "sun.raz.levona.336+shimi@gmail.com"
+          git add data/
+          git diff --cached --quiet && echo "no changes" || git commit -m "sync $(date -u +%H:%M)"
+          git push
