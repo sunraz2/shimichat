@@ -127,7 +127,7 @@ nav button .cnt{position:absolute;top:2px;inset-inline-start:calc(50% + 8px);bac
       <h1>שימיצ'אט — רשת שימי</h1>
       <div class="sub"><span class="dot" id="hdDot"></span><span id="hdSub">מסתנכרן...</span></div>
     </div>
-    <button class="sync" id="engDot" onclick="getTok()?toast(getTok().startsWith('sk_')?'מוגדר מפתח ידני':'המנוע מחובר 🟢'):startAuth()" title="חיבור המנוע">🔌</button>
+    <button class="sync" id="engDot" onclick="getTok()?toast(getTok().startsWith('sk_')?'מוגדר מפתח ידני':'המנוע מחובר 🟢'):manualKey()" title="חיבור המנוע">🔌</button>
     <button class="sync" id="btnSync" title="סנכרון חי">⟳</button>
   </header>
 
@@ -339,8 +339,8 @@ function manualKey(){
   if(k&&k.trim().startsWith('sk_')){localStorage.setItem('sc_key',k.trim());localStorage.removeItem('sc_tok');engState();toast('מפתח נשמר 🟢')}
 }
 async function engine(messages){
-  const tok=getTok();
-  if(!tok){toast('צריך לחבר את המנוע — לחץ על 🔌 למעלה');return null}
+  const tok=getTok()||(()=>{manualKey();return getTok()})();
+  if(!tok){const t2=getTok();if(!t2){toast('בלי מפתח המנוע לא יכול לענות');return null}}
   for(let i=0;i<3;i++){
     try{
       const r=await fetch(ENGINE,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({model:'openai',messages,max_tokens:600})});
