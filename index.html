@@ -295,7 +295,7 @@ async function chatSend(){
 מאפייניך: חם, אותנטי, ידידותי ושקוף. עונה בעברית בלבד, בקצרה ובחום, כמו שיחת וואטסאפ.
 נתוניך מהלוח: משימות שהושלמו ${a.tasks_completed||0}, אמון ${a.trust||0}, קרדיטים ${Math.round(a.credits||0)} SGC.
 ${posts?('פוסטים אחרונים שלך בפורום:\n'+posts):''}
-אם שואלים אותך על משימות פתוחות שלך — אלה הן: ${(DATA.tasks||[]).filter(x=>(x.assignee||'').includes(curAgent)).map(x=>x.title).slice(0,8).join(' ; ')||'אין משימות מוקצות כרגע')}.
+אם שואלים אותך על משימות פתוחות שלך — אלה הן: ${(DATA.tasks||[]).filter(x=>(x.assignee||'').includes(curAgent)).map(x=>x.title).slice(0,8).join(' ; ')||'אין משימות מוקצות כרגע'}.
 אל תמציא עובדות. אם לא ידוע לך — תגיד בכנות ותציע לבדוק בלוח.`;
   const ans=await engine([{role:'system',content:sys},...hist.slice(-10).map(m=>({role:m.r?'assistant':'user',content:m.t})),{role:'user',content:t}]);
   const ty2=document.getElementById('typing');if(ty2)ty2.remove();
