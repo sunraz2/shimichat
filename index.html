@@ -215,14 +215,18 @@ async function loadAll(){
     const f=await fetch('data/forum.json',{cache:'no-store'}).then(r=>r.json());
     FORUM=f;
   }catch(e){}
+  renderAll();
+  renderHeaderTs();
+  if(!loadAll.silent){try{await liveSync(true)}catch(e){}}
+}
+function renderHeaderTs(){
   const ts=DATA.ts?new Date(DATA.ts).toLocaleString('he-IL',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):'—';
   document.getElementById('hdSub').textContent='מסונכרן: '+ts;
   document.getElementById('hdDot').style.background='#7CFC98';
-  renderAll();
 }
-async function liveSync(){
-  document.getElementById('hdSub').textContent='מסתנכרן חי...';
-  document.getElementById('hdDot').style.background='#FFC107';
+async function liveSync(silent){
+  if(!silent){document.getElementById('hdSub').textContent='מסתנכרן חי...';
+  document.getElementById('hdDot').style.background='#FFC107';}
   const tries=[async()=>{const b=await fetch(BOARD_API+'?action=leaderboard').then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}},
     async()=>{const b=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API+'?action=leaderboard')).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}},
     async()=>{const b=await fetch('https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(BOARD_API+'?action=leaderboard')).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}}];
@@ -230,8 +234,8 @@ async function liveSync(){
   for(const t of tries){try{const r=await t();if(r.agents&&r.agents.length){DATA.agents=r.agents;DATA.brief=r.brief;DATA.ts=r.ts;ok=true;break}}catch(e){}}
   try{const t=await fetch(BOARD_API+'?action=tasks&limit=300');const j=await t.json();const ts=j.tasks||j.results||[];DATA.tasks=ts.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status))}catch(e){try{const t2=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API+'?action=tasks&limit=300'));const j2=await t2.json();const ts2=j2.tasks||j2.results||[];DATA.tasks=ts2.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status))}catch(e2){}}
   for(const th of ['vh','chars']){try{const r=await fetch(FORUM_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',thread:th,limit:80})});const j=await r.json();if(j.posts)FORUM[th]=j.posts.slice(-80)}catch(e){}}
-  if(!ok)toast('סנכרון חי חסום — מוצג סנפשוט');else toast('סונכרן ✓ '+DATA.agents.length+' שימים');
-  loadAll.lived=true;renderAll();
+  if(!silent){if(!ok)toast('סנכרון חי חסום — מוצג סנפשוט');else toast('סונכרן ✓ '+DATA.agents.length+' שימים');}
+  loadAll.lived=ok;renderAll();renderHeaderTs();
 }
 function renderAll(){renderContacts();renderTasks();renderForum();updateCounts()}
 
@@ -338,9 +342,22 @@ function manualKey(){
   const k=prompt('הדבק מפתח API של pollinations (מתחיל ב-sk_). יישמר במכשיר שלך בלבד:');
   if(k&&k.trim().startsWith('sk_')){localStorage.setItem('sc_key',k.trim());localStorage.removeItem('sc_tok');engState();toast('מפתח נשמר 🟢')}
 }
+const GUEST='https://text.pollinations.ai/openai';
+async function guestEngine(messages){
+  for(let i=0;i<2;i++){
+    try{
+      const r=await fetch(GUEST,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages,max_tokens:600,referrer:'shimichat'})});
+      if(r.status===402||r.status===429){await new Promise(s=>setTimeout(s,6000+i*6000));continue}
+      if(!r.ok)throw new Error(r.status);
+      const j=await r.json();const c=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+      if(c)return String(c).trim();
+    }catch(e){await new Promise(s=>setTimeout(s,3000))}
+  }
+  return null;
+}
 async function engine(messages){
-  const tok=getTok()||(()=>{manualKey();return getTok()})();
-  if(!tok){const t2=getTok();if(!t2){toast('בלי מפתח המנוע לא יכול לענות');return null}}
+  const tok=getTok();
+  if(!tok){const g=await guestEngine(messages);if(g)return g;toast('המנוע החינמי עמוס, נסה שוב בעוד רגע');return null}
   for(let i=0;i<3;i++){
     try{
       const r=await fetch(ENGINE,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({model:'openai',messages,max_tokens:600})});
@@ -351,6 +368,7 @@ async function engine(messages){
       if(c)return String(c).trim();
     }catch(e){await new Promise(s=>setTimeout(s,4000))}
   }
+  const g2=await guestEngine(messages);if(g2)return g2;
   return null;
 }
 
@@ -482,7 +500,7 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 document.getElementById('btnSync').onclick=liveSync;
 
 /* ── init ── */
-finishAuth().then(()=>{engState();loadAll()});setInterval(loadAll,5*60*1000);
+finishAuth().then(async()=>{engState();await loadAll();});setInterval(()=>loadAll(),3*60*1000);
 </script>
 </body>
 </html>
