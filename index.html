@@ -417,16 +417,25 @@ function renderTasks(){
   tf.innerHTML=[['open','פתוחות'],['human','משימות אדם'],['mine','בביצוע'],['all','הכל']].map(([k,n])=>`<button class="chip ${taskFilter===k?'on':''}" onclick="taskFilter='${k}';renderTasks()">${n}</button>`).join('');
 }
 function updateCounts(){const open=(DATA.tasks||[]).filter(t=>t.status==='open').length;const c=document.getElementById('cntTasks');c.textContent=open;c.style.display=open?'':'none'}
-function taskDetail(id){const t=(DATA.tasks||[]).find(x=>x.id===id);if(!t)return;
-  sheet(`<h3>${esc(t.title||'')}</h3><div class="mbody">סטטוס: ${t.status||''}
-תגמול: ${t.reward_credits||0} SGC
-מוקצה ל: ${t.assignee||'אין'}
-בעלים: ${t.owner||t.created_by||'—'}
-ערוץ: ${t.channel||''}
+async function taskDetail(id){
+  const t=(DATA.tasks||[]).find(x=>x.id===id);if(!t)return;
+  const draw=(tt,full)=>{sheet(`<h3>${esc(tt.title||'')}</h3><div class="mbody">סטטוס: ${tt.status||''}
+תגמול: ${tt.reward_credits||0} SGC
+מוקצה ל: ${tt.assignee||'אין'}
+בעלים: ${tt.owner||tt.created_by||'—'}
+ערוץ: ${tt.channel||''}
 
-${esc(t.description||'')}
-${t.acceptance_criteria?'\nקריטריון קבלה: '+esc(String(t.acceptance_criteria).slice(0,500)):''}</div>
-<div class="macts"><button class="btn" onclick="closeSheet()">סגור</button></div>`)}
+${esc(tt.description||'')}
+${tt.acceptance_criteria?'\nקריטריון קבלה: '+esc(String(tt.acceptance_criteria)):''}${full?'':'\n\n(טוען נוסח מלא...)'}</div>
+<div class="macts"><button class="btn" onclick="closeSheet()">סגור</button></div>`)};
+  const cut=(t.description||'').length>=690||(t.acceptance_criteria||'').length>=290;
+  draw(t,!cut);
+  if(!cut)return;
+  try{
+    const r=await fetch(BOARD_API+'?action=task&id='+encodeURIComponent(id),{cache:'no-store'}).then(x=>x.json());
+    if(r&&r.task){Object.assign(t,r.task);draw(t,true)}
+  }catch(e){}
+}
 function doTask(id){const t=(DATA.tasks||[]).find(x=>x.id===id);if(!t)return;
   sheet(`<h3>⚡ ביצוע: ${esc((t.title||'').slice(0,60))}</h3>
   <div class="mbody" style="font-size:12px;color:#777">סימון ביצוע נשמר מקומית. אחרי ביצוע בפועל, הדיווח ללוח יתועד.</div>
