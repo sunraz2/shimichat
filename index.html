@@ -218,8 +218,10 @@ async function loadAll(){
     FORUM=f;
   }catch(e){}
   renderAll();
-  renderHeaderTs();
-  if(!loadAll.silent){try{await liveSync(true)}catch(e){}}
+  if(loadAll.silent){renderHeaderTs()}
+  else{document.getElementById('hdSub').textContent='מסתנכרן חי...';document.getElementById('hdDot').style.background='#FFC107';
+    try{await liveSync(true)}catch(e){}renderHeaderTs()}
+  
 }
 function renderHeaderTs(){
   const ts=DATA.ts?new Date(DATA.ts).toLocaleString('he-IL',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):'—';
@@ -227,21 +229,26 @@ function renderHeaderTs(){
   document.getElementById('hdDot').style.background='#7CFC98';
 }
 async function liveSync(silent){
-  if(!silent){document.getElementById('hdSub').textContent='מסתנכרן חי...';
-  document.getElementById('hdDot').style.background='#FFC107';}
+  const hd=document.getElementById('hdSub'),dot=document.getElementById('hdDot');
+  if(!silent){hd.textContent='מסתנכרן חי...';dot.style.background='#FFC107'}
   const pv=async(u)=>{const b=await fetch(u,{cache:'no-store'}).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}};
-  const tries=[()=>pv(BOARD_API+'?action=leaderboard'),()=>pv(BOARD_API_ABS+'?action=leaderboard'),
-    ()=>pv('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API_ABS+'?action=leaderboard'))];
-  let ok=false;
-  for(const t of tries){try{const r=await t();if(r.agents&&r.agents.length){DATA.agents=r.agents;DATA.brief=r.brief;DATA.ts=r.ts;ok=true;break}}catch(e){}}
-  for(const u of [BOARD_API+'?action=tasks&limit=300',BOARD_API_ABS+'?action=tasks&limit=300']){
-    try{const j=await fetch(u,{cache:'no-store'}).then(r=>r.json());const ts=j.tasks||j.results||[];
-      if(ts.length){DATA.tasks=ts.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status));break}}catch(e){} }
-  for(const th of ['vh','chars']){
+  const agentsJob=(async()=>{
+    const tries=[BOARD_API+'?action=leaderboard',BOARD_API_ABS+'?action=leaderboard',
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API_ABS+'?action=leaderboard')];
+    for(const u of tries){try{const r=await pv(u);if(r.agents&&r.agents.length){DATA.agents=r.agents;DATA.brief=r.brief;DATA.ts=r.ts;return true}}catch(e){}}
+    return false})();
+  const tasksJob=(async()=>{
+    for(const u of [BOARD_API+'?action=tasks&limit=300',BOARD_API_ABS+'?action=tasks&limit=300']){
+      try{const j=await fetch(u,{cache:'no-store'}).then(r=>r.json());const ts=j.tasks||j.results||[];
+        if(ts.length){DATA.tasks=ts.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status));return true}}catch(e){}}
+    return false})();
+  const forumJob=Promise.all(['vh','chars'].map(async th=>{
     for(const u of [FORUM_API,FORUM_API_ABS]){
       try{const j=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',thread:th,limit:80})}).then(r=>r.json());
-        if(j.posts&&j.posts.length){FORUM[th]=j.posts.slice(-80);break}}catch(e){} } }
-  if(!silent){if(!ok)toast('סנכרון חי חסום — מוצג סנפשוט');else toast('סונכרן ✓ '+DATA.agents.length+' שימים');}
+        if(j.posts&&j.posts.length){FORUM[th]=j.posts.slice(-80);return true}}catch(e){}}
+    return false}));
+  const [ok]=await Promise.all([agentsJob,tasksJob,forumJob]);
+  if(!silent){if(!ok)toast('סנכרון חי חסום — מוצג סנפשוט');else toast('סונכרן ✓ '+DATA.agents.length+' שימים')}
   loadAll.lived=ok;renderAll();renderHeaderTs();
 }
 function renderAll(){renderContacts();renderTasks();renderForum();updateCounts()}
