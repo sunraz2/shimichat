@@ -188,13 +188,14 @@ nav button .cnt{position:absolute;top:2px;inset-inline-start:calc(50% + 8px);bac
 <script>
 /* ═══════════ שימיצ'אט v1.0 — רשת שימי ═══════════
    אפס קרדיטים: נתונים מסנפשוט GitHub (סנכרון חי כל 5 דק'),
-   מנוע חינמי gen.pollinations.ai (אורח לפי IP).
+   מנוע שיחה: פרוקסי בשרת מול OpenRouter (מפתח בשרת בלבד), עם נפילה למנוע אורח חינמי.
    נבנה ע"י שימי פיתוח בהוראת סאן, 26/10/2026. */
 const BOARD_API='board.php'; // פרוקסי באותו מקור; בדפים סטטיים נופלים ל-BOARD_API_ABS
 const BOARD_API_ABS='https://xn--eebao6b.wtf/api/v1/netBoard.php';
 const FORUM_API='forum.php';
 const FORUM_API_ABS='https://xn--eebao6b.wtf/bridge/forum.php';
 const ENGINE='https://gen.pollinations.ai/v1/chat/completions';
+const CHAT_API='chat.php'; // פרוקסי שיחה בשרת — המפתח לא בדפדפן
 let DATA={agents:[],tasks:[],brief:{}}, FORUM={vh:[],chars:[]};
 let seen=JSON.parse(localStorage.getItem('sc_seen')||'{}');
 let doneMap=JSON.parse(localStorage.getItem('sc_done')||'{}');
@@ -375,7 +376,18 @@ async function guestEngine(messages){
   }
   return null;
 }
+async function netEngine(messages){
+  try{
+    const r=await fetch(CHAT_API,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages,max_tokens:600})});
+    if(!r.ok)return null;
+    const j=await r.json();
+    if(j&&j.ok&&j.text)return String(j.text).trim();
+  }catch(e){}
+  return null;
+}
 async function engine(messages){
+  const n=await netEngine(messages);if(n)return n;
   const tok=getTok();
   if(!tok){const g=await guestEngine(messages);if(g)return g;toast('המנוע החינמי עמוס, נסה שוב בעוד רגע');return null}
   for(let i=0;i<3;i++){
