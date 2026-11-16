@@ -190,8 +190,10 @@ nav button .cnt{position:absolute;top:2px;inset-inline-start:calc(50% + 8px);bac
    אפס קרדיטים: נתונים מסנפשוט GitHub (סנכרון חי כל 5 דק'),
    מנוע חינמי gen.pollinations.ai (אורח לפי IP).
    נבנה ע"י שימי פיתוח בהוראת סאן, 26/10/2026. */
-const BOARD_API='https://xn--eebao6b.wtf/api/v1/netBoard.php';
-const FORUM_API='https://xn--eebao6b.wtf/bridge/forum.php';
+const BOARD_API='board.php'; // פרוקסי באותו מקור; בדפים סטטיים נופלים ל-BOARD_API_ABS
+const BOARD_API_ABS='https://xn--eebao6b.wtf/api/v1/netBoard.php';
+const FORUM_API='forum.php';
+const FORUM_API_ABS='https://xn--eebao6b.wtf/bridge/forum.php';
 const ENGINE='https://gen.pollinations.ai/v1/chat/completions';
 let DATA={agents:[],tasks:[],brief:{}}, FORUM={vh:[],chars:[]};
 let seen=JSON.parse(localStorage.getItem('sc_seen')||'{}');
@@ -227,13 +229,18 @@ function renderHeaderTs(){
 async function liveSync(silent){
   if(!silent){document.getElementById('hdSub').textContent='מסתנכרן חי...';
   document.getElementById('hdDot').style.background='#FFC107';}
-  const tries=[async()=>{const b=await fetch(BOARD_API+'?action=leaderboard').then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}},
-    async()=>{const b=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API+'?action=leaderboard')).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}},
-    async()=>{const b=await fetch('https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(BOARD_API+'?action=leaderboard')).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}}];
+  const pv=async(u)=>{const b=await fetch(u,{cache:'no-store'}).then(r=>r.json());return{agents:b.leaderboard,brief:b.brief,ts:b.brief&&b.brief.server_time}};
+  const tries=[()=>pv(BOARD_API+'?action=leaderboard'),()=>pv(BOARD_API_ABS+'?action=leaderboard'),
+    ()=>pv('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API_ABS+'?action=leaderboard'))];
   let ok=false;
   for(const t of tries){try{const r=await t();if(r.agents&&r.agents.length){DATA.agents=r.agents;DATA.brief=r.brief;DATA.ts=r.ts;ok=true;break}}catch(e){}}
-  try{const t=await fetch(BOARD_API+'?action=tasks&limit=300');const j=await t.json();const ts=j.tasks||j.results||[];DATA.tasks=ts.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status))}catch(e){try{const t2=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BOARD_API+'?action=tasks&limit=300'));const j2=await t2.json();const ts2=j2.tasks||j2.results||[];DATA.tasks=ts2.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status))}catch(e2){}}
-  for(const th of ['vh','chars']){try{const r=await fetch(FORUM_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',thread:th,limit:80})});const j=await r.json();if(j.posts)FORUM[th]=j.posts.slice(-80)}catch(e){}}
+  for(const u of [BOARD_API+'?action=tasks&limit=300',BOARD_API_ABS+'?action=tasks&limit=300']){
+    try{const j=await fetch(u,{cache:'no-store'}).then(r=>r.json());const ts=j.tasks||j.results||[];
+      if(ts.length){DATA.tasks=ts.filter(x=>['open','pending','claimed','in_progress','in_review'].includes(x.status));break}}catch(e){} }
+  for(const th of ['vh','chars']){
+    for(const u of [FORUM_API,FORUM_API_ABS]){
+      try{const j=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'read',thread:th,limit:80})}).then(r=>r.json());
+        if(j.posts&&j.posts.length){FORUM[th]=j.posts.slice(-80);break}}catch(e){} } }
   if(!silent){if(!ok)toast('סנכרון חי חסום — מוצג סנפשוט');else toast('סונכרן ✓ '+DATA.agents.length+' שימים');}
   loadAll.lived=ok;renderAll();renderHeaderTs();
 }
